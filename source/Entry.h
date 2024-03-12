@@ -1,9 +1,11 @@
 #pragma once
 
+#include "Console.h"
 #include "SHA256.h"
+#include "GUI.h"
 #include <iostream>
-#include <vector>
 #include <fstream>
+#include <vector>
 using namespace std;
 
 class Entry
@@ -38,12 +40,12 @@ public:
     virtual vector<Entry *> getSubEntryList() const;
     virtual bool hasChildWithTheSameName(Entry const &entry) const;
 
-    void write(ofstream &flie) const;
+    void write(ofstream &file) const;
 
     virtual void display(bool selected);
     virtual void show(int selected){};
     virtual int getListSize() { return 0; };
-    virtual Entry *getEntryInList(int i){return nullptr};
+    virtual Entry *getEntryInList(int i) { return nullptr; };
     void setPassword(string pw);
     void resetPassword();
     bool checkPassword(string pw);
@@ -78,4 +80,4 @@ protected:
     string Name;
     string FullPathOutside; // Window
     bool IsFolder;
-}
+};

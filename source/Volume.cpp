@@ -24,6 +24,7 @@ bool Volume::create()
     if (file.is_open())
     {
         file.clear();
+        // Write VolumeInfo to file - signature, SizeEntryTable,OffsetEntryTable
         this->VolumeInfo.write(file);
         file.close();
         return true;
@@ -58,17 +59,22 @@ bool Volume::isEmpty() const
 void Volume::importGUI(Entry *parent)
 {
     system("cls");
-    cout << "===== IMPORT A FILE/FOLDER =====";
+
+    setColor(COLOR::LIGHT_CYAN, COLOR::BLACK);
+    GUI::printTextAtMid("===== IMPORT A FILE/FOLDER =====");
     cout << "\n\n";
 
     cout << "  Program: * Input a path of a folder or a file that you want to import to this volume"
          << "\n";
     cout << "           * Do not input anything then press Enter to";
+    setColor(COLOR::YELLOW, COLOR::BLACK);
     cout << " EXIT";
+    setColor(COLOR::LIGHT_CYAN, COLOR::BLACK);
 
     cout << "\n\n"
          << "  User: ";
 
+    setColor(COLOR::WHITE, COLOR::BLACK);
     string str;
     FlushConsoleInputBuffer(GetStdHandle(STD_INPUT_HANDLE));
     getline(cin, str);
@@ -80,6 +86,7 @@ void Volume::importGUI(Entry *parent)
 
     if (this->import(str, parent))
     {
+        setColor(COLOR::LIGHT_CYAN, COLOR::BLACK);
         cout << "\n\n"
              << "  Program: Import successfully."
              << "\n\n";
@@ -88,6 +95,7 @@ void Volume::importGUI(Entry *parent)
     }
     else
     {
+        setColor(COLOR::LIGHT_RED, COLOR::BLACK);
         cout << "\n\n"
              << "  Program: Can not import this path into the volume."
              << "\n\n";
@@ -563,4 +571,427 @@ ExportState Volume::exportFile(Entry *export_file_entry, string const &destinati
 
     volume_stream.close();
     return state;
+}
+
+string Volume::getPath() const
+{
+    return this->Path;
+}
+
+bool Volume::isVolumeFile()
+{
+    // Open file and check if this file is a volume file
+    bool isVF = false;
+    fstream file(this->PAth, ios_base::in | ios_base::binary);
+    if (file.is_open())
+    {
+        file.clear();
+        this->seekToHeadOfEntryTable_g(file);
+        this->VolumeInfo.read(file);
+        isVF = this->VolumeInfo.checkSignature(file);
+        file.close();
+    }
+    return isVF;
+}
+
+void Volume::performFunctions()
+{
+    this->navigate(this->EntryTable.Root);
+}
+
+void Volume::nagivate(Entry *f)
+{
+    // Check if f is nullptr
+    if (!f)
+        return;
+
+    char x = 0;
+    bool back = false;
+    bool isFolder = true;
+
+    this->updateMenu(f);
+}
+
+void Volume::updateMenu(Entry *entry)
+{
+    clrscr();
+    GUI::clearBackground();
+
+    setColor(0, 10);
+    cout << " Path ";
+
+    setColor(10, 0);
+    cout << " " << entry->getPath();
+    printSpace(123 - entry->getPath().size() - 7);
+
+    setColor(0, 7);
+    gotoXY(0, 1);
+    cout << " Name";
+    printSpace(42);
+    cout << " | ";
+    printSpace(9);
+    cout << "Size(bytes) | Type";
+    printSpace(6);
+    cout << " | Modified";
+    printSpace(16);
+    cout << " |  Password " << endl;
+    setColor(15, 0);
+
+    entry->show(GUI::line);
+}
+
+bool Volume::enterFolder(Entry *parent, bool &back)
+{
+    if (GUI::line == 0)
+    {
+        back = true;
+        GUI::reset();
+        return true;
+    }
+
+    string pw;
+
+    Entry *f = parent->getEntryInList(GUI::line - 1);
+
+    if (!f->isFolder())
+    {
+        return false;
+    }
+
+    if (f->isLocked())
+    {
+        clrscr();
+        GUI::clearBackground();
+
+        pw = GUI::enterPassword();
+
+        if (f->checkPassword(pw))
+        {
+            this->nagivate(f);
+        }
+        else
+        {
+            setColor(COLOR::LIGHT_RED, COLOR::BLACK);
+            gotoXY(0, 5);
+            cout << "  Error: Invalid password. Access folder denied. ";
+            gotoXY(0, 7);
+            cout << "  ";
+            system("pause");
+            setColor(COLOR::WHITE, COLOR::BLACK);
+        }
+    }
+    else
+    {
+        this->navigate(f);
+    }
+    return true;
+}
+
+void Volume::setPassword(Entry *f)
+{
+    if (GUI::line == 0)
+        return; // Case parent folder
+
+    clrscr();
+    GUI::clearBackground();
+
+    size_t oldPasswordLen = f->getPasswordLen();
+
+    string pw = GUI::enterPassword();
+
+    if (f->isLocked())
+    {
+        if (f->checkPassword(pw))
+        {
+            f->resetPassword();
+        }
+        else
+        {
+            setColor(COLOR::LIGHT_RED, COLOR::BLACK);
+            gotoXY(0, 5);
+            cout << "  Error: Invalid password. Reset pasword denied. " << endl;
+            gotoXY(0, 7);
+            cout << "  ";
+            system("pause");
+            setColor(COLOR::WHITE, COLOR::BLACK);
+            return;
+        }
+    }
+    else
+    {
+        f->setPassword(pw);
+    }
+
+    size_t newPasswordLen = f->getPasswordLen();
+
+    this->VolumeInfo.updateAfterSetPassword(oldPasswordLen, newPasswordLen);
+    this->writePasswordChange();
+}
+
+bool Volume::del(Entry *entry, Entry *parent)
+{
+    bool isTotallyDeleted = true;
+
+    // Step 1: Find and delete all sub-entries of this entry (Recursively)
+    vector<Entry *> subEntryList = entry->getSubEntryList();
+    for (Entry *subEntry : subEntryList)
+    {
+        if (subEntry->isLocked())
+        {
+            isTotallyDeleted = false;
+            continue;
+        }
+        if (!this->del(subEntry, entry))
+        {
+            isTotallyDeleted = false;
+        }
+    }
+
+    // Step 2: Check if this entry still stores sub-entries, if yes, we can not delete this entry
+    if (entry->getListSize() != 0)
+    {
+        return isTotallyDeleted;
+    }
+
+    // Step 3: Delete this entry on File
+    uint64_t newEndPosOfVolumeFile = 0;
+    fstream file(this->Path, ios_base::in | ios_base::out | ios_base::binary);
+    if (file.is_open())
+    {
+        file.clear();
+
+        // Step 3.1: Data field
+        size_t const BLOCK_SIZE = 4096;
+        uint_8 subData[BLOCK_SIZE];
+
+        entry->seekToHeadOfData_p(file);
+        uint64_t startWrite = file.tellp();
+
+        entry->seekToEndOfData_g(file);
+        uint64_t startRead = file.tellg();
+
+        this->VolumeInfo.seekToHeadOfEntryTable_g(file);
+        uint64_t endDataField = file.tellg();
+
+        uint64_t shiftingDataSize = endDataField - startRead;
+
+        for (uint64_t i = 0; i < shiftingDataSize / BLOCK_SIZE; i++)
+        {
+            file.seekg(startRead);
+            file.read((char *)subData, BLOCK_SIZE);
+            startRead += BLOCK_SIZE;
+
+            file.seekp(startWrite);
+            file.write((char *)subData, BLOCK_SIZE);
+            startWrite += BLOCK_SIZE;
+        }
+        shiftingDataSize %= BLOCK_SIZE; // remain
+        file.seekg(startRead);
+        file.read((char *)subData, shiftingDataSize);
+        file.seekp(startWrite);
+        file.write((char *)subData, shiftingDataSize);
+
+        // Step 3.2: Entry Table
+        this->EntryTable.updateAfterDel(entry);
+        this->EntryTable.write(file);
+
+        // Step 3.3: Volume Info
+        this->VolumeInfo.updateAfterDel(entry);
+        this->VolumeInfo.write(file);
+
+        newEndPosOfVolumeFile = (unit64_t)file.tellp();
+    }
+    file.close();
+
+    // Step 3.4: Resize this Volume file
+    this->resize(newEndPosOfVolumeFile);
+
+    // Step 4: Delete this Entry on RAM
+    parent->del(entry);
+
+    return isTotallyDeleted;
+}
+
+void Volume::resize(uint64_t const &size)
+{
+    // Convert the path of this volume from string to LPTSTR
+    LPTSTR lpfname = new TCHAR[this->Path.length() + 1];
+    for (size_t i = 0; i < this->Path.length(); i++)
+    {
+        lpfname[i] = (CHAR)this->Path[i];
+    }
+    lpfname[this->Path.length()] = '\0';
+
+    // Open this volume file with the path name in LPTSTR type
+    HANDLE file = CreateFile(
+        lpfname,
+        GENERIC_WRITE,
+        FILE_SHARE_WRITE,
+        NULL,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL,
+        NULL);
+
+    // Check erro afther opening this volume file
+    DWORD dwErr = GetLastError();
+    if (dwErr > 0)
+    {
+        cout << "  Error: " << dwErr << endl;
+        throw;
+    }
+
+    // Resize this volume file and close file
+    LARGE_INTEGER largeInt;
+    largeInt.QuadPart = size;
+
+    SetFilePointerEx(file, largeInt, 0, FILE_BEGIN);
+    SetEndOfFile(file);
+    CloseHandle(file);
+}
+
+void Volume::deleteOnVolume(Entry *f)
+{
+    if (GUI::line == 0)
+        return; // case Parent
+
+    clrscr();
+    GUI::clearBackground();
+
+    string pw;
+
+    Entry *entry = f;
+    f = f->getEntryInList(GUI::line - 1);
+
+    if (f->isLocked())
+    {
+        pw = GUI::enterPassword();
+
+        if (!f->checkPassword(pw))
+        {
+            setColor(COLOR::LIGHT_RED, COLOR::BLACK);
+            gotoXY(0, 5);
+            cout << "  Error: Invalid password. Deletion denied. " << endl;
+            gotoXY(0, 7);
+            cout << "  ";
+            system("pause");
+            setColor(COLOR::WHITE, COLOR::BLACK);
+            return;
+        }
+
+        gotoXY(0, 5);
+    }
+
+    string name = f->getName();
+    setColor(COLOR::LIGHT_CYAN, COLOR::BLACK);
+    cout << "  Program: Do you want to permanently DELETE '" << name << "'? " << endl;
+    cout << endl;
+    cout << "           Type DELETE to confirm | else it will cancel." << endl;
+    cout << endl;
+    cout << "  User:    ";
+    setColor(COLOR::WHITE, COLOR::BLACK);
+    cin >> pw;
+    cout << endl;
+    setColor(COLOR::WHITE, COLOR::BLACK);
+
+    if ((pw.compare("DELETE") == 0) || (pw.compare("delete") == 0))
+    {
+        if (!this->del(f, parent))
+        {
+            setColor(COLOR::LIGHT_RED, COLOR::BLACK);
+            cout << "  Program: '" << name << "' can not be deleted totally." << endl;
+            cout << endl;
+            cout << "           Because this folder still stores some files or folders secured with password." << endl;
+            cout << endl;
+            cout << "           To delete '" << name << "' totally, make sure that all files or folders stored in this folder have no password." << endl;
+        }
+        else
+        {
+            setColor(COLOR::LIGHT_CYAN, COLOR::BLACK);
+            cout << "  Program:  '" << name << "' is deleted successfully. " << endl;
+        }
+        cout << endl;
+        cout << "  ";
+        system("pause");
+        setColor(COLOR::WHITE, COLOR::BLACK);
+        GUI::reset();
+    }
+    else
+    {
+        setColor(COLOR::LIGHT_CYAN, COLOR::BLACK);
+        cout << "  Program: Delete  '" << name << "' is canceled. " << endl;
+        cout << endl;
+        cout << "  ";
+        system("pause");
+        setColor(COLOR::WHITE, COLOR::BLACK);
+    }
+}
+
+void Volume::initialize(string const &volumeFilePath)
+{
+    // Convert the path of this volume from string to LPTSTR
+    LPTSTR lptstrVFP = new TCHAR[volumeFilePath.length() + 1];
+    for (size_t i = 0; i < volumeFilePath.length(); i++)
+    {
+        lptstrVFP[i] = (TCHAR)volumeFilePath[i];
+    }
+    lptstrVFP[volumeFilePath.length()] = '\0';
+
+    // Get a full path (LPTSTR) for this volume file with the path in LPTSTR type
+    LPTSTR tempPath = new TCHAR[MAX_PATH];
+    GetFullPathName(lptstrVFP, MAX_PATH, tempPath, NULL);
+
+    // Convert a full path name from LPTSTR to string
+    for (size_t i = 0; i < MAX_PATH; i++)
+    {
+        if (tempPath[i] == '\0')
+        {
+            break;
+        }
+        if (tempPath[i] == '\\')
+        {
+            this->Path += Entry::SLASH;
+        }
+        else
+        {
+            this->Path += tempPath[i];
+        }
+    }
+}
+
+void Volume::seekToHeadOfVolumeInfo_g(fstream &file) const
+{
+    file.seekg(0 - (int)sizeof(VolumeInfo), ios_base::end);
+}
+
+void Volume::seekToHeadOfVolumeInfo_p(fstream &file) const
+{
+    file.seekp(0 - (int)sizeof(VolumeInfo), ios_base::end);
+}
+
+void Volume::seekToHeadOfEntryTable_g(fstream &file) const
+{
+    this->VolumeInfo.seekToHeadOfEntryTable_g(file);
+}
+
+void Volume::seekToHeadOfEntryTable_p(fstream &file) const
+{
+    this->VolumeInfo.seekToHeadOfEntryTable_p(file);
+}
+
+void Volume::writePasswordChange()
+{
+    fstream file(this->Path, ios_base::in | ios_base::out | ios_base::binary);
+
+    unit64_t newSize = 0;
+    if (file.is_open())
+    {
+        this->seekToHeadOfEntryTable_p(file);
+        this->EntryTable.write(file);
+        this->VolumeInfo.write(file);
+
+        newSize = file.tellp();
+        file.close();
+
+        this->resize(newSize);
+    }
 }

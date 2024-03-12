@@ -1,4 +1,5 @@
 #pragma once
+
 #include "Volume.h"
 #include "Cache.h"
 class Program
@@ -22,4 +23,4 @@ private:
     void homeScreen();
     void printHomeScreen();
     void homeNavigate();
-}
+};

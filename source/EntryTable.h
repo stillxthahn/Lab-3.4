@@ -1,7 +1,8 @@
-#pramge once
-#include "VolumeInfor.h"
+#pragma once
+#include "VolumeInfo.h"
 #include "Entry.h"
 #include "Folder.h"
+#include "GUI.h"
 
 class EntryTable
 {
@@ -11,7 +12,7 @@ public:
     EntryTable();
     ~EntryTable();
 
-    void read(fstream &file, VolumeInfor const &volumeInfo);
+    void read(fstream &file, VolumeInfo const &volumeInfo);
     void write(fstream &file) const;
 
     void add(Entry const &entry);
@@ -20,5 +21,5 @@ public:
 
 private:
     Entry *Root;
-    vector<Entry> EntryList;
-}
+    vector<Entry *> EntryList;
+};
