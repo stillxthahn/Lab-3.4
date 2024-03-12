@@ -35,7 +35,8 @@ void EntryTable::write(fstream &file) const
 void EntryTable::add(Entry const &entry)
 {
     bool foundParent = false;
-    for (size_t i = 0; i < this->EntryList.size(); i++)
+
+    for (size_t i = 0; i < this->EntryList.size(); ++i)
     {
         if (entry.hasParent(this->EntryList[i]))
         {
@@ -44,8 +45,40 @@ void EntryTable::add(Entry const &entry)
             return;
         }
     }
+
     if (!foundParent)
     {
         this->EntryList.push_back(this->Root->add(entry));
     }
+}
+
+void EntryTable::updateAfterDel(Entry const *entry)
+{
+    auto delEntry = this->EntryList.begin();
+    auto entryIterator = this->EntryList.begin();
+
+    // Find the Entry that we want to delete
+    for (; entryIterator != this->EntryList.end(); ++entryIterator)
+    {
+        if (*entryIterator == entry)
+        {
+            delEntry = entryIterator;
+            break;
+        }
+    }
+
+    if (entryIterator == this->EntryList.end())
+    {
+        throw "Logic Error";
+    }
+
+    // Update OffsetData of all entries behind the entry that we want to delete
+    for (++entryIterator; entryIterator != this->EntryList.end(); ++entryIterator)
+    {
+        (*entryIterator)->OffsetData -= (*delEntry)->SizeData;
+    }
+
+    // Delete entry from EntryList
+    this->EntryList.erase(delEntry);
+    this->EntryList.shrink_to_fit();
 }

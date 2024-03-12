@@ -2,11 +2,13 @@
 
 #include "Volume.h"
 #include "Cache.h"
+
 class Program
 {
 public:
     Program();
     ~Program();
+
     void run();
 
 private:
@@ -21,6 +23,5 @@ private:
     void closeVolume();
 
     void homeScreen();
-    void printHomeScreen();
     void homeNavigate();
 };

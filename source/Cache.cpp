@@ -1,7 +1,7 @@
 #include "Cache.h"
 
-string const Cache::Path = "cach-file-system";
-string const Cache::Signature = "Cache--QTV--FinalProject";
+string const Cache::Path = "cache-file-system";
+string const Cache::Signature = "Cache--NHT--FinalProject";
 
 Cache::Cache()
 {
@@ -52,7 +52,7 @@ void Cache::add(string const &volumeFilePath)
 void Cache::update()
 {
     // Open each Volume File Path in the Volume Path List,
-    // find and discard all path which dit not exist
+    // find and discard all path which did not exist.
     for (size_t i = 0; i < this->VolumePathList.size();)
     {
         fstream file(this->VolumePathList[i], ios_base::in);
@@ -100,7 +100,7 @@ void Cache::showListOfRecentlyOpenedVolume() const
     {
         cout << "  List of recent volumes:"
              << "\n";
-        for (size_t i = 0; i < this->VolumePathList.size(); i++)
+        for (size_t i = 0; i < this->VolumePathList.size(); ++i)
         {
             setColor(COLOR::WHITE, COLOR::BLACK);
             cout << "    <" << i + 1 << "> ";
@@ -117,7 +117,7 @@ bool Cache::hasVolume(string &str) const
     {
         size_t indexVolume = 0;
 
-        for (size_t i = 1; i < str.length() - 1; i++)
+        for (size_t i = 1; i < str.length() - 1; ++i)
         {
             if (str[i] >= '0' && str[i] <= '9')
             {
@@ -137,10 +137,36 @@ bool Cache::hasVolume(string &str) const
             return true;
         }
     }
+
     return false;
 }
 
 bool Cache::exist()
+{
+    fstream file(this->Path, ios_base::in);
+    if (file.is_open())
+    {
+        file.close();
+        return true;
+    }
+
+    return false;
+}
+
+void Cache::initialize()
+{
+    fstream file(this->Path, ios_base::out);
+    if (file.is_open())
+    {
+        file.clear();
+
+        file << this->Signature << "\n";
+
+        file.close();
+    }
+}
+
+void Cache::read()
 {
     fstream file(this->Path, ios_base::in);
     if (file.is_open())

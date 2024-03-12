@@ -1,5 +1,4 @@
 #include "Entry.h"
-#include <string>
 
 Entry::Entry()
 {
@@ -30,7 +29,7 @@ void Entry::read(fstream &file)
     file.read((char *)&this->ModifiedDate, sizeof(this->ModifiedDate));
     file.read((char *)&this->SizeData, sizeof(this->SizeData));
     file.read((char *)&this->PathLen, sizeof(this->PathLen));
-    file.read((char *)&this->PasswordLen, sizeof(this->ModifiedTime));
+    file.read((char *)&this->PasswordLen, sizeof(this->PasswordLen));
     file.read((char *)&this->OffsetData, sizeof(this->OffsetData));
 
     this->Path.resize(this->PathLen);
@@ -90,7 +89,7 @@ bool Entry::hasParent(Entry const *parent) const
         {
             return false;
         }
-        i++;
+        ++i;
     }
 
     while (i < (size_t)(this->PathLen - this->isFolder()))
@@ -101,12 +100,18 @@ bool Entry::hasParent(Entry const *parent) const
         }
         ++i;
     }
+
     return true;
 }
 
 string Entry::getPath() const
 {
     return this->Path;
+}
+
+uint32_t Entry::getSizeData() const
+{
+    return this->SizeData;
 }
 
 uint32_t Entry::getSize() const
@@ -119,15 +124,17 @@ uint16_t Entry::getPasswordLen() const
     return this->PasswordLen;
 }
 
+string Entry::getFullPathOutside() const
+{
+    return this->FullPathOutside;
+}
+
 bool Entry::getIsFolder() const
 {
     return this->IsFolder;
 }
 
-Entry *Entry::add(Entry const &entry)
-{
-    return nullptr;
-}
+Entry *Entry::add(Entry const &entry) { return nullptr; }
 
 void Entry::write(ofstream &file) const
 {
@@ -209,6 +216,13 @@ void Entry::getFileInfoAndConvertToEntry(_WIN32_FIND_DATAA ffd,
     }
 }
 
+void Entry::standardizeAfterImport(Entry *parent)
+{
+    this->standardizePath();
+    this->updatePathAfterImport(parent);
+    this->initializeName();
+}
+
 void Entry::initializeName()
 {
     size_t startPosOfName = 0;
@@ -226,7 +240,8 @@ void Entry::initializeName()
 void Entry::standardizePath()
 {
     string tempPath = "";
-    for (size_t i = 0; i < this->PathLen; i++)
+
+    for (size_t i = 0; i < this->PathLen; ++i)
     {
         if (this->Path[i] == '\\')
         {
@@ -237,6 +252,7 @@ void Entry::standardizePath()
             tempPath += this->Path[i];
         }
     }
+
     this->Path = tempPath;
     this->PathLen = tempPath.length();
 }
@@ -247,40 +263,52 @@ void Entry::updatePathAfterImport(Entry *parent)
     this->PathLen = this->Path.length();
 }
 
-void Entry::display(bool selectedd)
+void Entry::display(bool selected)
 {
+    if (selected)
+        setColor(15, 1);
+
     // Name
     cout << " " << Name;
+    printSpace(49 - Name.length());
 
     // Size
     if (!isFolder())
     {
-        string numWithCommas = to_string(this->SizeData);
-        int insertPosition = numWithCommas.length() - 3;
-        while (insertPosition > 0)
-        {
-            numWithCommas.insert(insertPosition, ",");
-            insertPosition -= 3;
-        }
-
-        cout << numWithCommas << "   ";
+        string s = numCommas(this->SizeData);
+        printSpace(20 - s.length());
+        cout << s << "   ";
     }
+    else
+    {
+        printSpace(23);
+    }
+
+    // Type
+    gotoXY(whereX() + 10, whereY());
+
     // Modified
     cout << "   ";
     this->displayModDate();
     cout << " ";
     this->displayModTime();
+    printSpace(27 - 19);
 
     // Password
     if (isLocked())
     {
+        printSpace(10 - 4);
         cout << "[ON]";
     }
     else
     {
+        printSpace(10 - 5);
         cout << "[OFF]";
     }
     cout << endl;
+
+    if (selected)
+        setColor(15, 0);
 }
 
 void Entry::setPassword(string pw)
@@ -304,6 +332,8 @@ bool Entry::checkPassword(string pw)
     // Check 1st XOR
     for (int i = 0; i < pw.length(); i++)
     {
+        GUI::checkPassword(i);
+
         string toTEST_0 = pw;
         toTEST_0[i] = toTEST_0[i] ^ salt[0];
 
@@ -319,10 +349,11 @@ bool Entry::checkPassword(string pw)
                 string toTEST_2 = toTEST_1;
                 toTEST_2[u] = toTEST_2[u] ^ salt[2];
 
-                // HASH
+                // Hash
                 uint8_t v = 0;
                 while (true)
                 {
+
                     string toSHA256 = toTEST_2 + (char)v;
                     toSHA256 = sha256(toSHA256);
 
@@ -338,6 +369,7 @@ bool Entry::checkPassword(string pw)
             }
         }
     }
+
     return false;
 }
 
@@ -399,6 +431,7 @@ void Entry::displayModTime()
     {
         cout << (int)m << ":";
     }
+
     // Sec
     s = (this->ModifiedTime & 31) << 1;
     if (s < 10)
