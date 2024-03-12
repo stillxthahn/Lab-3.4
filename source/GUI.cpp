@@ -65,7 +65,7 @@ string GUI::hidePassword()
         {
             cout << temp;
             Sleep(50);
-            cout < "\b*";
+            cout << "\b*";
             input.push_back(temp);
         }
     }

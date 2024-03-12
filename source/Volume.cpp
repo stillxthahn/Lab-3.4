@@ -12,7 +12,7 @@ Volume::~Volume() {}
 bool Volume::create()
 {
     // Check if this file exist, if yes, we cannot create a volume with this name
-    fstream tempFile(this->path, ios_base::in | ios_base::binray);
+    fstream tempFile(this->Path, ios_base::in | ios_base::binary);
     if (tempFile.is_open())
     {
         tempFile.close();
@@ -20,7 +20,7 @@ bool Volume::create()
     }
 
     // Create a volume file
-    fstream file(this->path, ios_base::out | ios_base::binary);
+    fstream file(this->Path, ios_base::out | ios_base::binary);
     if (file.is_open())
     {
         file.clear();
@@ -35,7 +35,7 @@ bool Volume::create()
 void Volume::open()
 {
     // Open a volume file, then read info of VolumeInfo and EntryTable
-    fstream file(this->path, ios_base::in | ios_base::binary);
+    fstream file(this->Path, ios_base::in | ios_base::binary);
     if (file.is_open())
     {
         this->seekToHeadOfVolumeInfo_g(file);
@@ -114,7 +114,7 @@ void Volume::importGUI(Entry *parent)
 
 bool Volume::import(string const &new_file_path, Entry *parent)
 {
-    fstream volumeStream(this->path, ios_base::in | ios_base::out | ios_base::binary);
+    fstream volumeStream(this->Path, ios_base::in | ios_base::out | ios_base::binary);
     if (!volumeStream.is_open())
     {
         throw "Volume Path Error";
@@ -353,7 +353,7 @@ bool Volume::import(string const &new_file_path, Entry *parent)
     this->EntryTable.write(volumeStream);
 
     // Update the size of Entry Table
-    this->VolumeInfo.updateSizeEntryTable((unit64_t)volumeStream.tellp());
+    this->VolumeInfo.updateSizeEntryTable((uint64_t)volumeStream.tellp());
 
     // Write the Volume Info Area
     this->VolumeInfo.write(volumeStream);
@@ -471,7 +471,7 @@ ExportState Volume::exportFile(Entry *export_file_entry, string const &destinati
 
     // Check if the destination path exists
     _WIN32_FIND_DATAA ffd;
-    HADNLE hFile = FindFirstFileA(destianation_path.c_str(), &ffd);
+    HANDLE hFile = FindFirstFileA(destination_path.c_str(), &ffd);
     if (hFile == INVALID_HANDLE_VALUE)
     {
         volume_stream.close();
@@ -582,7 +582,7 @@ bool Volume::isVolumeFile()
 {
     // Open file and check if this file is a volume file
     bool isVF = false;
-    fstream file(this->PAth, ios_base::in | ios_base::binary);
+    fstream file(this->Path, ios_base::in | ios_base::binary);
     if (file.is_open())
     {
         file.clear();
@@ -599,7 +599,7 @@ void Volume::performFunctions()
     this->navigate(this->EntryTable.Root);
 }
 
-void Volume::nagivate(Entry *f)
+void Volume::navigate(Entry *f)
 {
     // Check if f is nullptr
     if (!f)
@@ -667,7 +667,7 @@ bool Volume::enterFolder(Entry *parent, bool &back)
 
         if (f->checkPassword(pw))
         {
-            this->nagivate(f);
+            this->navigate(f);
         }
         else
         {
@@ -762,7 +762,7 @@ bool Volume::del(Entry *entry, Entry *parent)
 
         // Step 3.1: Data field
         size_t const BLOCK_SIZE = 4096;
-        uint_8 subData[BLOCK_SIZE];
+        uint8_t subData[BLOCK_SIZE];
 
         entry->seekToHeadOfData_p(file);
         uint64_t startWrite = file.tellp();
@@ -799,7 +799,7 @@ bool Volume::del(Entry *entry, Entry *parent)
         this->VolumeInfo.updateAfterDel(entry);
         this->VolumeInfo.write(file);
 
-        newEndPosOfVolumeFile = (unit64_t)file.tellp();
+        newEndPosOfVolumeFile = (uint64_t)file.tellp();
     }
     file.close();
 
@@ -859,7 +859,7 @@ void Volume::deleteOnVolume(Entry *f)
 
     string pw;
 
-    Entry *entry = f;
+    Entry *parent = f;
     f = f->getEntryInList(GUI::line - 1);
 
     if (f->isLocked())
@@ -895,6 +895,7 @@ void Volume::deleteOnVolume(Entry *f)
 
     if ((pw.compare("DELETE") == 0) || (pw.compare("delete") == 0))
     {
+
         if (!this->del(f, parent))
         {
             setColor(COLOR::LIGHT_RED, COLOR::BLACK);
@@ -982,7 +983,7 @@ void Volume::writePasswordChange()
 {
     fstream file(this->Path, ios_base::in | ios_base::out | ios_base::binary);
 
-    unit64_t newSize = 0;
+    uint64_t newSize = 0;
     if (file.is_open())
     {
         this->seekToHeadOfEntryTable_p(file);

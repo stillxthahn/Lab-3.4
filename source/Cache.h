@@ -15,7 +15,7 @@ public:
     ~Cache();
 
     bool isEmpty() const;
-    void aad(string const &volumeFilePath);
+    void add(string const &volumeFilePath);
     void update();
     void clear();
     void showListOfRecentlyOpenedVolume() const;
